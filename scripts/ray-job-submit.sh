@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Sample: submit a job to a Ray cluster (e.g. KubeRay).
-# Set RAY_ADDRESS or pass --address. Credentials (DATABRICKS_*) must be set in the job environment.
+# Set RAY_ADDRESS to your Ray job server (e.g. http://<host>:8265). Credentials (DATABRICKS_*) must be set in the job environment.
 
 set -euo pipefail
 
-RAY_ADDRESS="${RAY_ADDRESS:-http://kuberay-1.dev.meesho.int}"
+: "${RAY_ADDRESS:?Set RAY_ADDRESS to your Ray job server, e.g. http://<host>:8265}"
 
 # 1) Minimal Ray cluster check (no Daft)
 echo "=== Ray cluster resources (no Daft) ==="
