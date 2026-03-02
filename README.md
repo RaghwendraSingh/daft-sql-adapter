@@ -93,11 +93,11 @@ assert isinstance(result, CtasResult)
 
 Submit jobs to a Ray cluster (e.g. KubeRay) using the job submission API. The job runs on the cluster; ensure the cluster image or runtime has this package and its dependencies installed.
 
-**Job submission server address (example):** `http://kuberay-1.dev.meesho.int`
+**Job submission server address (example):** `http://<ray-job-server-host>:8265`
 
 **Minimal Ray cluster check (no Daft):**
 ```bash
-ray job submit --address http://kuberay-1.dev.meesho.int -- \
+ray job submit --address http://<ray-job-server-host>:8265 -- \
   python -c "import ray; ray.init(); print(ray.cluster_resources())"
 ```
 
@@ -106,7 +106,7 @@ Set `DATABRICKS_HOST` and `DATABRICKS_TOKEN` in the job environment (e.g. via yo
 
 ```bash
 # From a machine where the adapter is installed and RAY_ADDRESS is set
-export RAY_ADDRESS="http://kuberay-1.dev.meesho.int"
+export RAY_ADDRESS="http://<ray-job-server-host>:8265"
 export DATABRICKS_HOST="https://<workspace>.cloud.databricks.com"
 export DATABRICKS_TOKEN="<your-token>"
 
