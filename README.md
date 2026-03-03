@@ -16,6 +16,8 @@ Run **Spark SQL** against **Databricks Unity Catalog** using **Daft on Ray**. Qu
 pip install -e .
 # Optional: Iceberg writes
 pip install -e ".[iceberg]"
+# Optional: Spark backend (daft.pyspark on Ray for distributed execution)
+pip install -e ".[spark]"
 ```
 
 ## Configuration (credentials)
@@ -61,6 +63,8 @@ daft-sql-adapter --sql "CREATE TABLE ns.out AS SELECT * FROM catalog.schema.my_t
 | `--format` | For CTAS: `delta` or `iceberg`. |
 | `--output-path` | For CTAS: output path (Delta) or table identifier (Iceberg). Required if LOCATION is not in the SQL. |
 | `--config` | Path to config file (sets `DAFT_SQL_ADAPTER_CONFIG`). |
+| `--backend` | Execution backend: `session` (default, Daft Session) or `spark` (daft.pyspark on Ray). |
+| `--ray-url` | Ray URL for `--backend spark` (e.g. `ray://head:6379`). Default: `RAY_URL` env or `ray://localhost:6379`. |
 
 ## Library API
 
@@ -87,6 +91,14 @@ result = run_sql(
 )
 assert isinstance(result, CtasResult)
 # result.status == 0, result.path_or_identifier, result.format
+
+# Optional: run distributedly via Spark backend on Ray
+result = run_sql(
+    "SELECT * FROM catalog.schema.t LIMIT 10",
+    table_names=["catalog.schema.t"],
+    backend="spark",
+    ray_url="ray://head:6379",  # or set RAY_URL env
+)
 ```
 
 ## Running on a Ray cluster
@@ -101,7 +113,7 @@ ray job submit --address http://<ray-job-server-host>:8265 -- \
   python -c "import ray; ray.init(); print(ray.cluster_resources())"
 ```
 
-**Run daft-sql-adapter as a submitted job:**  
+**Run daft-sql-adapter as a submitted job (default backend):**  
 Set `DATABRICKS_HOST` and `DATABRICKS_TOKEN` in the job environment (e.g. via your orchestration or `--runtime-env-json`). The driver and workers will use the cluster’s Ray; Daft will use the Ray backend automatically when running on the cluster.
 
 ```bash
@@ -114,16 +126,30 @@ ray job submit --address "$RAY_ADDRESS" -- \
   daft-sql-adapter --sql "SELECT 1 AS x" --tables "" --output /tmp/out.arrow --metadata /tmp/meta.json
 ```
 
+**Alternate: Spark backend (daft.pyspark on Ray):**  
+Install with `pip install -e ".[spark]"` and use `--backend spark`. Set `RAY_URL` to the cluster's Ray head (e.g. `ray://<head-ip>:6379`). When the job runs on the cluster, `ray://localhost:6379` is often correct.
+
+```bash
+export RAY_ADDRESS="http://<ray-job-server-host>:8265"
+export RAY_URL="ray://localhost:6379"   # in-cluster; use ray://<head-ip>:6379 from outside
+export DATABRICKS_HOST="https://<workspace>.cloud.databricks.com"
+export DATABRICKS_TOKEN="<your-token>"
+
+ray job submit --address "$RAY_ADDRESS" -- \
+  daft-sql-adapter --backend spark --sql "SELECT 1 AS x" --tables "" --output /tmp/out.arrow --metadata /tmp/meta.json
+```
+
 A sample script is in [scripts/ray-job-submit.sh](scripts/ray-job-submit.sh).
 
 ## Project layout (SOLID-oriented)
 
 - `config/` – Credentials (env + optional file); no secrets in logs.
 - `sql/` – Transpile (Spark → Postgres), classify (CREATE_TABLE vs SELECT), parse CTAS.
-- `catalog/` – Unity client factory, table loader into Session.
+- `backend/` – Execution backends: Session (default) and Spark (daft.pyspark on Ray).
+- `catalog/` – Unity client factory, table loader into backend.
 - `writers/` – TableWriter abstraction; Delta and Iceberg implementations.
 - `pagination/` – Slice + Arrow IPC for SELECT.
-- `ctas.py` – Execute CTAS: run SELECT, then write via TableWriter.
+- `ctas.py` – Execute CTAS: run SELECT via backend, then write via TableWriter.
 - `runner.py` – Orchestration: credentials → Unity → load tables → transpile → execute.
 - `cli.py` – CLI entry point.
 

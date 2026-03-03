@@ -14,8 +14,14 @@ ray.init()
 print(ray.cluster_resources())
 "
 
-# 2) Optional: run daft-sql-adapter on the cluster
+# 2) Optional: run daft-sql-adapter on the cluster (default backend)
 # Ensure the cluster has this package (and DATABRICKS_* set, e.g. via runtime-env or image).
 #
 # ray job submit --address "$RAY_ADDRESS" -- \
 #   daft-sql-adapter --sql "SELECT 1 AS x" --tables "" --output /tmp/out.arrow --metadata /tmp/meta.json
+
+# 3) Optional: run with Spark backend (daft.pyspark on Ray); install with pip install -e ".[spark]"
+# RAY_URL=ray://localhost:6379 when the job runs on the cluster.
+#
+# RAY_URL="ray://localhost:6379" ray job submit --address "$RAY_ADDRESS" -- \
+#   daft-sql-adapter --backend spark --sql "SELECT 1 AS x" --tables "" --output /tmp/out.arrow --metadata /tmp/meta.json

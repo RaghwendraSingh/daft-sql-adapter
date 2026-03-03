@@ -1,5 +1,5 @@
 """
-CREATE TABLE AS SELECT: parse Spark CTAS, run SELECT in session, write to Delta or Iceberg.
+CREATE TABLE AS SELECT: parse Spark CTAS, run SELECT via backend, write to Delta or Iceberg.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from daft_sql_adapter.sql import parse_ctas, transpile_spark_to_postgres
 from daft_sql_adapter.writers import WriteResult, get_writer
 
 if TYPE_CHECKING:
-    from daft.session import Session
+    from daft_sql_adapter.backend.protocol import ExecutionBackend
 
 
 @dataclass
@@ -25,14 +25,14 @@ class CtasResult:
 
 
 def execute_ctas(
-    session: Session,
+    backend: "ExecutionBackend",
     spark_sql: str,
     output_path: str | None,
     output_format: str,
     iceberg_catalog=None,
 ) -> CtasResult:
     """
-    Parse CREATE TABLE AS SELECT, run the SELECT part, write result to Delta or Iceberg.
+    Parse CREATE TABLE AS SELECT, run the SELECT part via backend, write result to Delta or Iceberg.
     output_path: from LOCATION in SQL or from API/CLI (required if LOCATION not in SQL).
     output_format: "delta" | "iceberg".
     """
@@ -50,7 +50,7 @@ def execute_ctas(
         path = parsed.target_name
 
     transpiled_select = transpile_spark_to_postgres(select_sql)
-    result_df = session.sql(transpiled_select)
+    result_df = backend.run_sql(transpiled_select)
 
     writer = get_writer(output_format, iceberg_catalog=iceberg_catalog)
     write_result: WriteResult = writer.write(result_df, path, mode="overwrite")

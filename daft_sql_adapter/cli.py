@@ -75,6 +75,17 @@ def main() -> int:
         "--config",
         help="Path to config file (optional; else DATABRICKS_HOST and DATABRICKS_TOKEN).",
     )
+    parser.add_argument(
+        "--backend",
+        choices=["session", "spark"],
+        default="session",
+        help="Execution backend: session (default, Daft Session) or spark (daft.pyspark on Ray).",
+    )
+    parser.add_argument(
+        "--ray-url",
+        default=None,
+        help="Ray URL for spark backend (e.g. ray://head:6379). Default: RAY_URL env or ray://localhost:6379.",
+    )
     args = parser.parse_args()
 
     if args.config:
@@ -91,6 +102,8 @@ def main() -> int:
             page_size=args.page_size,
             output_path=args.output_path or None,
             output_format=args.format or None,
+            backend=args.backend,
+            ray_url=args.ray_url,
         )
     except ConfigError as e:
         print(f"Configuration error: {e}", file=sys.stderr)

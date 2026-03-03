@@ -6,8 +6,9 @@ Single entry point for run_sql (SELECT or CTAS).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
+from daft_sql_adapter.backend import get_backend
 from daft_sql_adapter.catalog import TableLoader, create_unity_catalog
 from daft_sql_adapter.config import load_credentials
 from daft_sql_adapter.ctas import execute_ctas, CtasResult
@@ -17,7 +18,6 @@ from daft_sql_adapter.sql import classify_query, transpile_spark_to_postgres, Qu
 
 if TYPE_CHECKING:
     from daft import DataFrame
-    from daft.session import Session
 
 
 @dataclass
@@ -39,11 +39,15 @@ def run_sql(
     iceberg_catalog: Any = None,
     credentials_provider=None,
     unity_catalog=None,
+    backend: Literal["session", "spark"] = "session",
+    ray_url: str | None = None,
 ) -> CtasResult | SelectResult:
     """
     Execute Spark SQL against Unity Catalog tables.
 
-    - Transpiles Spark SQL to PostgreSQL, loads tables into a Daft Session, runs the query.
+    - Transpiles Spark SQL to PostgreSQL, loads tables into the execution backend, runs the query.
+    - backend="session" (default): Daft Session (uses Ray when on a Ray cluster).
+    - backend="spark": daft.pyspark.SparkSession on Ray; set RAY_URL or ray_url (e.g. ray://head:6379).
     - If the query is CREATE TABLE AS SELECT: executes the SELECT and writes to Delta or Iceberg;
       requires output_path (or LOCATION in SQL) and output_format ("delta" | "iceberg").
     - If the query is SELECT: returns a paginated Arrow IPC result.
@@ -54,12 +58,9 @@ def run_sql(
     unity = unity_catalog or create_unity_catalog(credentials)
     loader = TableLoader(unity)
 
-    import daft
-    from daft.session import Session
-
-    session = Session()
+    exec_backend = get_backend(backend=backend, ray_url=ray_url)
     if table_names:
-        loader.load_into_session(session, table_names)
+        loader.load_into_backend(exec_backend, table_names)
 
     transpiled = transpile_spark_to_postgres(spark_sql)
     query_type = classify_query(spark_sql)
@@ -68,7 +69,7 @@ def run_sql(
         if not output_format:
             raise RunnerError("CREATE TABLE requires output_format ('delta' or 'iceberg')")
         ctas_result = execute_ctas(
-            session,
+            exec_backend,
             spark_sql,
             output_path=output_path,
             output_format=output_format,
@@ -77,7 +78,7 @@ def run_sql(
         return ctas_result
 
     if query_type == QueryType.SELECT:
-        result_df: DataFrame = session.sql(transpiled)
+        result_df: DataFrame = exec_backend.run_sql(transpiled)
         paginator = Paginator(page=page, page_size=page_size)
         data_bytes, meta = paginator.paginate_and_serialize(result_df)
         return SelectResult(data=data_bytes, metadata=meta)
