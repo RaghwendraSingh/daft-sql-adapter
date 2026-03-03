@@ -49,8 +49,12 @@ def execute_ctas(
     if not path and output_format.lower() == "iceberg":
         path = parsed.target_name
 
-    transpiled_select = transpile_spark_to_postgres(select_sql)
-    result_df = backend.run_sql(transpiled_select)
+    # Session backend expects PostgreSQL; Spark backend expects Spark SQL.
+    if backend.sql_dialect() == "postgres":
+        sql_to_run = transpile_spark_to_postgres(select_sql)
+    else:
+        sql_to_run = select_sql
+    result_df = backend.run_sql(sql_to_run)
 
     writer = get_writer(output_format, iceberg_catalog=iceberg_catalog)
     write_result: WriteResult = writer.write(result_df, path, mode="overwrite")

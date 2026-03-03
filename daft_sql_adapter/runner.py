@@ -62,7 +62,12 @@ def run_sql(
     if table_names:
         loader.load_into_backend(exec_backend, table_names)
 
-    transpiled = transpile_spark_to_postgres(spark_sql)
+    # Session backend expects PostgreSQL (Daft dialect); Spark backend expects Spark SQL.
+    if exec_backend.sql_dialect() == "postgres":
+        exec_sql = transpile_spark_to_postgres(spark_sql)
+    else:
+        exec_sql = spark_sql
+
     query_type = classify_query(spark_sql)
 
     if query_type == QueryType.CREATE_TABLE:
@@ -78,7 +83,7 @@ def run_sql(
         return ctas_result
 
     if query_type == QueryType.SELECT:
-        result_df: DataFrame = exec_backend.run_sql(transpiled)
+        result_df: DataFrame = exec_backend.run_sql(exec_sql)
         paginator = Paginator(page=page, page_size=page_size)
         data_bytes, meta = paginator.paginate_and_serialize(result_df)
         return SelectResult(data=data_bytes, metadata=meta)

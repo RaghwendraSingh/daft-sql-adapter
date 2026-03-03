@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from daft import DataFrame
 
 
 class SessionBackend:
-    """Wraps Daft Session: register_table -> create_temp_table, run_sql -> session.sql()."""
+    """Wraps Daft Session: register_table -> create_temp_table, run_sql -> session.sql(). Expects PostgreSQL dialect."""
+
+    def sql_dialect(self) -> Literal["postgres", "spark"]:
+        return "postgres"
 
     def __init__(self) -> None:
         from daft.session import Session

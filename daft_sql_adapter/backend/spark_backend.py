@@ -6,7 +6,7 @@ run_sql returns a Daft DataFrame (convert from Spark result via toPandas -> from
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from daft_sql_adapter.exceptions import RunnerError
 
@@ -26,9 +26,12 @@ def _check_spark_available() -> None:
 class SparkBackend:
     """
     Uses daft.pyspark.SparkSession.builder.remote(ray_url).getOrCreate().
-    Table registration: Daft DataFrame -> to_pandas -> createDataFrame -> createOrReplaceTempView.
-    run_sql: spark.sql(transpiled) -> result to_pandas() -> daft.from_pandas() for unified Daft DataFrame.
+    Expects Spark SQL (no transpilation). Table registration: Daft DataFrame -> to_pandas -> createDataFrame -> createOrReplaceTempView.
+    run_sql: spark.sql(spark_sql) -> result to_pandas() -> daft.from_pandas() for unified Daft DataFrame.
     """
+
+    def sql_dialect(self) -> Literal["postgres", "spark"]:
+        return "spark"
 
     def __init__(self, ray_url: str) -> None:
         _check_spark_available()
